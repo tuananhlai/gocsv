@@ -3,7 +3,6 @@ package gocsv
 import (
 	"bytes"
 	"encoding/csv"
-	"fmt"
 	"io"
 	"reflect"
 	"strconv"
@@ -708,13 +707,56 @@ e,3`)
 }
 
 func TestUnmarshalEachToCallbackWithError(t *testing.T) {
-	b := bytes.NewBufferString(`foo,BAR,Baz,Blah,SPtr,Omit
+	blah := 0
+	sptr := "*string"
+	sptr2 := ""
+	normalCase := bytes.NewBufferString(`foo,BAR,Baz,Blah,SPtr,Omit
 f,1,baz,,*string,*string
 e,3,b,,,`)
-	UnmarshalEachToCallbackWithError(bytes.NewReader(b.Bytes()), func(s Sample, err error) error {
-		fmt.Println(s)
+	samples := []Sample{}
+	UnmarshalEachToCallbackWithError(bytes.NewReader(normalCase.Bytes()), func(s Sample, err error) error {
+		samples = append(samples, s)
 		return nil
 	})
+
+	if len(samples) != 2 {
+		t.Fatalf("expected 2 sample instances, got %d", len(samples))
+	}
+
+	expected := Sample{Foo: "f", Bar: 1, Baz: "baz", Blah: &blah, SPtr: &sptr, Omit: &sptr}
+	if !reflect.DeepEqual(expected, samples[0]) {
+		t.Fatalf("expected first sample %v, got %v", expected, samples[0])
+	}
+
+	expected = Sample{Foo: "e", Bar: 3, Baz: "b", Blah: &blah, SPtr: &sptr2}
+	if !reflect.DeepEqual(expected, samples[1]) {
+		t.Fatalf("expected second sample %v, got %v", expected, samples[1])
+	}
+
+	badInputCase := bytes.NewBufferString(`foo,BAR,Baz,Blah,SPtr,Omit
+e,BAD_INPUT,b,,,
+f,1,baz,,*string,*string`)
+	samples = []Sample{}
+	errors := []error{}
+
+	UnmarshalEachToCallbackWithError(bytes.NewBuffer(badInputCase.Bytes()), func(s Sample, err error) error {
+		samples = append(samples, s)
+		errors = append(errors, err)
+		return nil
+	})
+
+	if errors[0] == nil {
+		t.Fatal("expected first error to be non-nil")
+	}
+
+	expected = Sample{Foo: "f", Bar: 1, Baz: "baz", Blah: &blah, SPtr: &sptr, Omit: &sptr}
+	if !reflect.DeepEqual(expected, samples[1]) {
+		t.Fatalf("expected second sample %v, got %v", expected, samples[1])
+	}
+
+	if errors[1] != nil {
+		t.Fatal("expected second error to be nil")
+	}
 }
 
 func TestCSVToMap(t *testing.T) {
