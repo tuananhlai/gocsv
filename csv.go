@@ -511,26 +511,29 @@ func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return err
+			tempError = err
 		}
+
 		outInner := createNewOutInner(outInnerWasPointer, outInnerType)
-		for j, csvColumnContent := range line {
-			if fieldInfo, ok := csvHeadersLabels[j]; ok { // Position found accordingly to header name
-				err := setInnerField(&outInner, outInnerWasPointer, fieldInfo.IndexChain, csvColumnContent, fieldInfo.omitEmpty)
-				if err != nil {
-					tempError = &csv.ParseError{
-						Line:   i + 2, //add 2 to account for the header & 0-indexing of arrays
-						Column: j + 1,
-						Err:    err,
+		if tempError == nil {
+			for j, csvColumnContent := range line {
+				if fieldInfo, ok := csvHeadersLabels[j]; ok { // Position found accordingly to header name
+					err := setInnerField(&outInner, outInnerWasPointer, fieldInfo.IndexChain, csvColumnContent, fieldInfo.omitEmpty)
+					if err != nil {
+						tempError = &csv.ParseError{
+							Line:   i + 2, //add 2 to account for the header & 0-indexing of arrays
+							Column: j + 1,
+							Err:    err,
+						}
+						break
 					}
-					break
 				}
 			}
 		}
 
 		var results []reflect.Value
 		if tempError != nil {
-			results = valueFunc.Call([]reflect.Value{reflect.ValueOf(nil), reflect.ValueOf(tempError)})
+			results = valueFunc.Call([]reflect.Value{outInner, reflect.ValueOf(tempError)})
 		} else {
 			results = valueFunc.Call([]reflect.Value{outInner, reflect.New(errorInterface).Elem()})
 		}
