@@ -3,6 +3,7 @@ package gocsv
 import (
 	"bytes"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"reflect"
 	"strconv"
@@ -704,6 +705,16 @@ e,3`)
 	if samples[0].Foo != "e" {
 		t.Fatal("wrong value in custom tag struct field")
 	}
+}
+
+func TestUnmarshalEachToCallbackWithError(t *testing.T) {
+	b := bytes.NewBufferString(`foo,BAR,Baz,Blah,SPtr,Omit
+f,1,baz,,*string,*string
+e,3,b,,,`)
+	UnmarshalEachToCallbackWithError(bytes.NewReader(b.Bytes()), func(s Sample, err error) error {
+		fmt.Println(s)
+		return nil
+	})
 }
 
 func TestCSVToMap(t *testing.T) {

@@ -398,7 +398,7 @@ func UnmarshalToCallbackWithError(in io.Reader, f interface{}) error {
 		}
 		v, notClosed := c.Recv()
 		if !notClosed || v.Interface() == nil {
-			if err := <- cerr; err != nil {
+			if err := <-cerr; err != nil {
 				fErr = err
 			}
 			break
@@ -440,6 +440,108 @@ func UnmarshalBytesToCallbackWithError(in []byte, f interface{}) error {
 // The func must look like func(Struct) error.
 func UnmarshalStringToCallbackWithError(in string, c interface{}) (err error) {
 	return UnmarshalToCallbackWithError(strings.NewReader(in), c)
+}
+
+// UnmarshalEachToCallbackWithError unmarshals the file and call `f` for every line unmarshaled.
+// `f` must have the form `func(Struct, error) error`. When we reached EOF or `f` returns an
+// error, the function will return.
+func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
+	decoder := newSimpleDecoderFromReader(in)
+
+	valueFunc := reflect.ValueOf(f)
+	t := reflect.TypeOf(f)
+	if t.NumIn() != 2 {
+		return fmt.Errorf("the given function must be of the form func(Struct, error) error")
+	}
+	if t.NumOut() != 1 {
+		return fmt.Errorf("the given function must be of the form func(Struct, error) error")
+	}
+	if !isErrorType(t.Out(0)) {
+		return fmt.Errorf("the given function must be of the form func(Struct, error) error")
+	}
+
+	headers, err := decoder.getCSVRow()
+	if err != nil {
+		return err
+	}
+	headers = normalizeHeaders(headers)
+
+	outInnerType := t.In(0)
+	outInnerWasPointer := false
+	if outInnerType.Kind() == reflect.Ptr {
+		outInnerWasPointer = true
+		outInnerType = outInnerType.Elem()
+	}
+	if err := ensureOutInnerType(outInnerType); err != nil {
+		return err
+	}
+	outInnerStructInfo := getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
+	if len(outInnerStructInfo.Fields) == 0 {
+		return ErrNoStructTags
+	}
+	csvHeadersLabels := make(map[int]*fieldInfo, len(outInnerStructInfo.Fields)) // Used to store the correspondance header <-> position in CSV
+	headerCount := map[string]int{}
+	for i, csvColumnHeader := range headers {
+		curHeaderCount := headerCount[csvColumnHeader]
+		if fieldInfo := getCSVFieldPosition(csvColumnHeader, outInnerStructInfo, curHeaderCount); fieldInfo != nil {
+			csvHeadersLabels[i] = fieldInfo
+			if ShouldAlignDuplicateHeadersWithStructFieldOrder {
+				curHeaderCount++
+				headerCount[csvColumnHeader] = curHeaderCount
+			}
+		}
+	}
+	if err := maybeMissingStructFields(outInnerStructInfo.Fields, headers); err != nil {
+		if FailIfUnmatchedStructTags {
+			return err
+		}
+	}
+	if FailIfDoubleHeaderNames {
+		if err := maybeDoubleHeaderNames(headers); err != nil {
+			return err
+		}
+	}
+
+	i := 0
+	var fErr error
+	var tempError error
+	for {
+		tempError = nil
+		line, err := decoder.getCSVRow()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		outInner := createNewOutInner(outInnerWasPointer, outInnerType)
+		for j, csvColumnContent := range line {
+			if fieldInfo, ok := csvHeadersLabels[j]; ok { // Position found accordingly to header name
+				err := setInnerField(&outInner, outInnerWasPointer, fieldInfo.IndexChain, csvColumnContent, fieldInfo.omitEmpty)
+				if err != nil {
+					tempError = &csv.ParseError{
+						Line:   i + 2, //add 2 to account for the header & 0-indexing of arrays
+						Column: j + 1,
+						Err:    err,
+					}
+					break
+				}
+			}
+		}
+
+		var results []reflect.Value
+		if tempError != nil {
+			results = valueFunc.Call([]reflect.Value{reflect.ValueOf(nil), reflect.ValueOf(tempError)})
+		} else {
+			results = valueFunc.Call([]reflect.Value{outInner, reflect.New(errorInterface).Elem()})
+		}
+		errValue := results[0].Interface()
+		if errValue != nil {
+			fErr = errValue.(error)
+			return fErr
+		}
+		i++
+	}
+	return nil
 }
 
 // CSVToMap creates a simple map from a CSV of 2 columns.
