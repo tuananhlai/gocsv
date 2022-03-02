@@ -142,3 +142,12 @@ func isErrorType(outType reflect.Type) bool {
 
 	return outType.Implements(errorInterface)
 }
+
+// isStringSlice checks if a reflect.Type is []string.
+func isStringSlice(in reflect.Type) bool {
+	if in.Kind() != reflect.Slice {
+		return false
+	}
+
+	return in.Elem().Kind() == reflect.String
+}

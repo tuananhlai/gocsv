@@ -714,10 +714,28 @@ func TestUnmarshalEachToCallbackWithError(t *testing.T) {
 f,1,baz,,*string,*string
 e,3,b,,,`)
 	samples := []Sample{}
-	UnmarshalEachToCallbackWithError(bytes.NewReader(normalCase.Bytes()), func(s Sample, err error) error {
+	lines := [][]string{}
+
+	err := UnmarshalEachToCallbackWithError(bytes.NewReader(normalCase.Bytes()), func(line []string, s Sample, err error) error {
 		samples = append(samples, s)
+		lines = append(lines, line)
 		return nil
 	})
+	if err != nil {
+		t.Fatalf("unmarshal return non-nil error: %v", err)
+	}
+
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d", len(lines))
+	}
+	expectedLine := []string{"f", "1", "baz", "", "*string", "*string"}
+	if !reflect.DeepEqual(lines[0], expectedLine) {
+		t.Errorf("expected lines[0] to be %v, got %v", expectedLine, lines[0])
+	}
+	expectedLine = []string{"e", "3", "b", "", "", ""}
+	if !reflect.DeepEqual(lines[1], expectedLine) {
+		t.Errorf("expected lines[1] to be %v, got %v", expectedLine, lines[1])
+	}
 
 	if len(samples) != 2 {
 		t.Fatalf("expected 2 sample instances, got %d", len(samples))
@@ -738,12 +756,29 @@ e,BAD_INPUT,b,,,
 f,1,baz,,*string,*string`)
 	samples = []Sample{}
 	errors := []error{}
+	lines = [][]string{}
 
-	UnmarshalEachToCallbackWithError(bytes.NewBuffer(badInputCase.Bytes()), func(s Sample, err error) error {
+	err = UnmarshalEachToCallbackWithError(bytes.NewBuffer(badInputCase.Bytes()), func(line []string, s Sample, err error) error {
 		samples = append(samples, s)
 		errors = append(errors, err)
+		lines = append(lines, line)
 		return nil
 	})
+	if err != nil {
+		t.Fatalf("unmarshal returns non-nil error: %v", err)
+	}
+
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d", len(lines))
+	}
+	expectedLine = []string{"e", "BAD_INPUT", "b", "", "", ""}
+	if !reflect.DeepEqual(lines[0], expectedLine) {
+		t.Errorf("expected lines[0] to be %v, got %v", expectedLine, lines[0])
+	}
+	expectedLine = []string{"f", "1", "baz", "", "*string", "*string"}
+	if !reflect.DeepEqual(lines[1], expectedLine) {
+		t.Errorf("expected lines[1] to be %v, got %v", expectedLine, lines[1])
+	}
 
 	if errors[0] == nil {
 		t.Fatal("expected first error to be non-nil")

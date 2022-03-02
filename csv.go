@@ -443,21 +443,24 @@ func UnmarshalStringToCallbackWithError(in string, c interface{}) (err error) {
 }
 
 // UnmarshalEachToCallbackWithError unmarshals the file and call `f` for every line unmarshaled.
-// `f` must have the form `func(Struct, error) error`. When we reached EOF or `f` returns an
+// `f` must have the form `func(line []string, data Struct, err error) error`. When we reached EOF or `f` returns an
 // error, the function will return.
 func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
 	decoder := newSimpleDecoderFromReader(in)
 
 	valueFunc := reflect.ValueOf(f)
 	t := reflect.TypeOf(f)
-	if t.NumIn() != 2 {
-		return fmt.Errorf("the given function must be of the form func(Struct, error) error")
+	if t.NumIn() != 3 {
+		return fmt.Errorf("the given function must be of the form func([]string, Struct, error) error")
 	}
 	if t.NumOut() != 1 {
-		return fmt.Errorf("the given function must be of the form func(Struct, error) error")
+		return fmt.Errorf("the given function must be of the form func([]string, Struct, error) error")
 	}
 	if !isErrorType(t.Out(0)) {
-		return fmt.Errorf("the given function must be of the form func(Struct, error) error")
+		return fmt.Errorf("the given function must be of the form func([]string, Struct, error) error")
+	}
+	if !isStringSlice(t.In(0)) {
+		return fmt.Errorf("the given function must be of the form func([]string, Struct, error) error")
 	}
 
 	headers, err := decoder.getCSVRow()
@@ -466,7 +469,7 @@ func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
 	}
 	headers = normalizeHeaders(headers)
 
-	outInnerType := t.In(0)
+	outInnerType := t.In(1)
 	outInnerWasPointer := false
 	if outInnerType.Kind() == reflect.Ptr {
 		outInnerWasPointer = true
@@ -533,9 +536,9 @@ func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
 
 		var results []reflect.Value
 		if tempError != nil {
-			results = valueFunc.Call([]reflect.Value{outInner, reflect.ValueOf(tempError)})
+			results = valueFunc.Call([]reflect.Value{reflect.ValueOf(line), outInner, reflect.ValueOf(tempError)})
 		} else {
-			results = valueFunc.Call([]reflect.Value{outInner, reflect.New(errorInterface).Elem()})
+			results = valueFunc.Call([]reflect.Value{reflect.ValueOf(line), outInner, reflect.New(errorInterface).Elem()})
 		}
 		errValue := results[0].Interface()
 		if errValue != nil {
