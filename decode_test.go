@@ -872,7 +872,7 @@ type trimDecoder struct {
 	csvReader CSVReader
 }
 
-func (c *trimDecoder) getCSVRow() ([]string, error) {
+func (c *trimDecoder) GetCSVRow() ([]string, error) {
 	recoder, err := c.csvReader.Read()
 	for i, r := range recoder {
 		recoder[i] = strings.TrimRight(r, " ")
@@ -880,10 +880,10 @@ func (c *trimDecoder) getCSVRow() ([]string, error) {
 	return recoder, err
 }
 
-func (c *trimDecoder) getCSVRows() ([][]string, error) {
+func (c *trimDecoder) GetCSVRows() ([][]string, error) {
 	records := [][]string{}
 	for {
-		record, err := c.getCSVRow()
+		record, err := c.GetCSVRow()
 		if err == io.EOF {
 			break
 		} else if err != nil {

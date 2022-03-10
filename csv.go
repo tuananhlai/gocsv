@@ -219,7 +219,7 @@ func UnmarshalCSV(in CSVReader, out interface{}) error {
 // UnmarshalCSVToMap parses a CSV of 2 columns into a map.
 func UnmarshalCSVToMap(in CSVReader, out interface{}) error {
 	decoder := NewSimpleDecoderFromCSVReader(in)
-	header, err := decoder.getCSVRow()
+	header, err := decoder.GetCSVRow()
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func UnmarshalCSVToMap(in CSVReader, out interface{}) error {
 	for {
 		key := reflect.New(keyType)
 		value := reflect.New(valueType)
-		line, err := decoder.getCSVRow()
+		line, err := decoder.GetCSVRow()
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -458,7 +458,7 @@ func UnmarshalDecoderToCallbackWithError(decoder SimpleDecoder, f interface{}) (
 		return fmt.Errorf("the given function must be of the form func([]string, Struct, error) error")
 	}
 
-	headers, err := decoder.getCSVRow()
+	headers, err := decoder.GetCSVRow()
 	if err != nil {
 		return err
 	}
@@ -505,7 +505,7 @@ func UnmarshalDecoderToCallbackWithError(decoder SimpleDecoder, f interface{}) (
 	var tempError error
 	for {
 		tempError = nil
-		line, err := decoder.getCSVRow()
+		line, err := decoder.GetCSVRow()
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -555,7 +555,7 @@ func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
 // CSVToMap creates a simple map from a CSV of 2 columns.
 func CSVToMap(in io.Reader) (map[string]string, error) {
 	decoder := newSimpleDecoderFromReader(in)
-	header, err := decoder.getCSVRow()
+	header, err := decoder.GetCSVRow()
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +564,7 @@ func CSVToMap(in io.Reader) (map[string]string, error) {
 	}
 	m := make(map[string]string)
 	for {
-		line, err := decoder.getCSVRow()
+		line, err := decoder.GetCSVRow()
 		if err == io.EOF {
 			break
 		} else if err != nil {
