@@ -442,12 +442,7 @@ func UnmarshalStringToCallbackWithError(in string, c interface{}) (err error) {
 	return UnmarshalToCallbackWithError(strings.NewReader(in), c)
 }
 
-// UnmarshalEachToCallbackWithError unmarshals the file and call `f` for every line unmarshaled.
-// `f` must have the form `func(line []string, data Struct, err error) error`. When we reached EOF or `f` returns an
-// error, the function will return.
-func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
-	decoder := newSimpleDecoderFromReader(in)
-
+func UnmarshalDecoderToCallbackWithError(decoder SimpleDecoder, f interface{}) (err error) {
 	valueFunc := reflect.ValueOf(f)
 	t := reflect.TypeOf(f)
 	if t.NumIn() != 3 {
@@ -548,6 +543,13 @@ func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
 		i++
 	}
 	return nil
+}
+
+// UnmarshalEachToCallbackWithError unmarshals the file and call `f` for every line unmarshaled.
+// `f` must have the form `func(line []string, data Struct, err error) error`. When we reached EOF or `f` returns an
+// error, the function will return.
+func UnmarshalEachToCallbackWithError(in io.Reader, f interface{}) (err error) {
+	return UnmarshalDecoderToCallbackWithError(newSimpleDecoderFromReader(in), f)
 }
 
 // CSVToMap creates a simple map from a CSV of 2 columns.
